@@ -1,22 +1,9 @@
+
+
+
 import json
 import sys
 import re
-
-def document():
-    print("---------------------------------------------------------------------\n"+
-    "documentation:\n"+
-    "---------------------------------------------------------------------\n"+
-    "this program is meant to compare and find common sequences\n"+
-    "from multi fasta files.\n"+
-    "It can accept two files as srguments.\n"+
-    "the format of the files is very crucial.\n" +
-    "accession Id should be first line and consecutive line should be\n"+
-    "sequence string. The sequence string should only be one line long. \n"+
-
-    "---------------------------------------------------------------------\n"+
-    "if no files are passed as arguments, the program searches\n"+
-    "for the files \"small.fasta\" and \"big.fasta\"\n"+
-    "---------------------------------------------------------------------\n")
 
 def file2JSON(file):
     json_ret = {}
@@ -27,7 +14,7 @@ def file2JSON(file):
                 json_ret[content[i]] = content[i+1]
     except:
         print("an ERROR occured---------------------------")
-        print(file + "file does not exist!")
+        print(file + " file does not exist!")
         print("exiting progream")
         print("-------------------------------------------")
         exit()
@@ -40,6 +27,22 @@ def save2JSON(file):
         json.dump(json_in, f)
 
 def compJSONs(file1, file2):
+    """
+    ---------------------------------------------------------------------
+    documentation:
+    ---------------------------------------------------------------------
+    this program is meant to compare and find common sequences
+    from multi fasta files.
+    It can accept two files as srguments.
+    the format of the files is very crucial. 
+    accession Id should be first line and consecutive line should be
+    sequence string. The sequence string should only be one line long. 
+
+    ---------------------------------------------------------------------
+    if not files are passed as file, the program searches for the files
+    "small.fasta" and "big.fasta"
+    ---------------------------------------------------------------------
+    """
     json1 = file2JSON(file1)
     json2 = file2JSON(file2)
     comKeys = 0
@@ -57,14 +60,13 @@ def compJSONs(file1, file2):
         print(str(comKeys)+" number of common sequences found")
     print("-------------------------------------------")
 
-
 if(len(sys.argv) == 3):
     small_file = sys.argv[1]
     big_file   = sys.argv[2]
     compJSONs(small_file, big_file)
 elif(len(sys.argv) == 2):
     if(sys.argv[1] == "-h" or sys.argv[1] == "help"):
-        document()
+        print(compJSONs.__doc__)
     else:
         print("-------------------------------------------")
         print("save 2 JSON mode activated:")
@@ -72,6 +74,6 @@ elif(len(sys.argv) == 2):
         print("file saved successfully")
         print("-------------------------------------------")
 else:
-    small_file = small.fasta
-    big_file   = big.fasta
+    small_file = "small.fasta"
+    big_file   = "big.fasta"
     compJSONs(small_file, big_file)
