@@ -2,20 +2,36 @@
 # coding: utf-8
 
 # In[1]:
+import importlib.util, sys
+
+def findDeps(name):
+    if (spec := importlib.util.find_spec(name)) is not None: return
+    else:
+        print(f"""
+            can't find the {name!r} module
+            you can manually install the dependencies using:
+
+                pip install {name}
+
+                or 
+
+                conda install {name}
+        """)
+        sys.exit()
 
 
+for i in ['pandas', 'numpy']: findDeps(i)
 import pandas as pd
 import numpy as np
-import sys
-vcfIn = ""
-gtfIn = ""
-saveFile = 'report.txt'
 
+vcfIn, gtfIn, saveFile = "", "", 'report.txt'
 def validateExtension(fil):
-    if len(fil.split('.')) > 2:
+    if fil.find('.gz') > 0:
         print("""
         \033[1;31mERROR: This program does not accept '.gz' files%\033[0m
         Please input uncompressed files
+
+        use -h or --help for more information
         """)
         sys.exit()
     else: return
@@ -33,6 +49,27 @@ elif len(sys.argv)==3:
     gtfIn = sys.argv[2]
     validateExtension(vcfIn)
     validateExtension(gtfIn)
+elif len(sys.argv)==2:
+    if sys.argv[1] == "-h" or sys.argv[1] == "--help":
+        print("""
+        --------------------------------------------------------------------
+        vcfAnotator
+        --------------------------------------------------------------------\n
+        This script is built with the intention of annotating VCF files
+        inorder to identify the genes that the identified mutations affect.
+
+        command line arguments accepted:   
+        1. vcf_file_name
+        2. gtf_file_name
+        3. output_file_name (Optional, default out put file is 'report.txt')
+
+        or 
+
+        use -h or --help for more information
+        --------------------------------------------------------------------
+        """)
+        
+        sys.exit()
 else: 
     print("""
     \033[1;31mERROR: input files not provided as arguments%\033[0m
@@ -40,6 +77,8 @@ else:
         1. vcf_file_name
         2. gtf_file_name
         3. output_file_name (Optional, default out put file is 'report.txt')
+
+        use -h or --help for more information
     """)
     sys.exit()
 
