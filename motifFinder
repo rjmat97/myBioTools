@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+import argparse, re
+
+def openFastaFile(fi):
+    fileArr, key={}, ''
+    with open(fi) as fasta:
+        for line in fasta:
+            if line.startswith('>'): 
+                key = line.strip()[1:]
+                fileArr[key] = ''
+            else: fileArr[key] = f'{fileArr[key]}{line.strip()}'
+    return fileArr
+
+def isBlunt(string, cut):
+    comp = string.translate(string.maketrans("ATGC", "TACG"))
+    rev = comp[::-1]
+    print(f'{" ".ljust(cut+1," ")}↓')
+    print(f'--{string[:cut]} {string[cut:]}--')
+    
+    le=len(string)
+    if rev==string and le/2==cut : 
+        print(f'--{comp[:cut]} {comp[cut:]}--')
+        print(f'{" ".ljust(cut+3," ")}↑')
+        return True, 0
+    else: 
+        ret = le-cut
+        print(f'--{comp[:ret]} {comp[ret:]}--')
+        print(f'{" ".ljust(ret+3," ")}↑')
+        return False, ret-1
+
+def main():
+    args = get_args()
+    ref,motif, off, out = args.ref,args.motif, args.cut_offset, args.out
+
+    multfa = openFastaFile(ref) 
+    blunt, roff = isBlunt(motif, off)
+
+    if out!=None: 
+        with open(out, 'w') as output: output.write('')
+        print(f'saving to: {out}')
+    for i in multfa:
+        it = [i.start()+off for i in re.finditer(motif, multfa[i])]
+        if not blunt: it+= [j+roff for j in it]
+        it = sorted(it)
+
+        if out==None: 
+            for j in it: print(f'{i}\t{j}\t{motif}')
+        else:
+            with open(out, 'a') as output: 
+                for j in it: output.write(f'{i}\t{j}\t{motif}\n')
+
+def get_args():
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('ref',type=str, help='refernece genome location')
+    parser.add_argument('-m', '--motif', help='motif to search for')
+    parser.add_argument('-c', '--cut-offset', type=int, help='refernece genome location', default=None)
+    parser.add_argument('-o', '--out', help='output file name. Default: print to STDIO', default=None)
+    return parser.parse_args()
+
+if __name__ == '__main__': main() 
