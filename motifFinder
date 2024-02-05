@@ -112,7 +112,7 @@ if __name__ == "__main__":
     if args.output!="": 
         path = Path(outbed)
         if Path(str(path.parent)).exists()==False: Path.mkdir(Path(directory))
-        bed.reset_index(drop=True).to_csv(f'{directory}/{abbr}_{motif}.bed', sep="\t", header=None, index=False)
+        bed.reset_index(drop=True).to_csv(args.output, sep="\t", header=None, index=False)
     else:
         try:
             print(bed.to_csv(sep='\t', index=False, header=None if args.header==False else True))
