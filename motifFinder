@@ -114,5 +114,7 @@ if __name__ == "__main__":
         if Path(str(path.parent)).exists()==False: Path.mkdir(Path(directory))
         bed.reset_index(drop=True).to_csv(f'{directory}/{abbr}_{motif}.bed', sep="\t", header=None, index=False)
     else:
-        bed = bed.to_string(index=False, header=None if args.header==False else True)
-        print(bed)
+        try:
+            print(bed.to_csv(sep='\t', index=False, header=None))
+        except BrokenPipeError:
+            pass
