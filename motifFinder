@@ -94,13 +94,16 @@ if __name__ == "__main__":
     ref = args.ref
     motif = args.motif
 
-    regOb = re.search('[am]', 'GATC')
+    regOb = re.search('[am]', motif)
+
     if regOb==None:
         offset = args.offset
         motif = args.motif.upper()
     else:
         methNucleotide = regOb.group(0)
         offset = regOb.span(0)[0]
+    print('offset: ', offset)
+
 
     chrom = args.chr
     outbed = args.output
