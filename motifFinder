@@ -1,60 +1,118 @@
-#!/usr/bin/env python
-import argparse, re
+import pandas as pd
+import numpy as np
+import re, json
+import sys
+if sys.version_info[0] < 3: from StringIO import StringIO
+else: from io import StringIO
+from Bio import SeqIO
+import json
+from pathlib import Path
+import argparse
+from signal import signal, SIGPIPE, SIG_DFL
+
+revcomp = str.maketrans('GATCWSN','CTAGWSN')
+nucleotides = { 'A': "A", 'C': "C", 'G': "G", 'T': "T", 'R': "[AG]", 'Y': "[CT]", 'S': "[GC]", 'W': "[AT]", 'K': "[GT]", 'M': "[AC]", 'B': "[ACT]", 'D': "[AGT]", 'H': "[ACT]", 'V': "[ACG]", 'N': "[ATCG]", }
 
 def openFastaFile(fi):
+    rfOb = SeqIO.parse(open(fi),'fasta')
     fileArr, key={}, ''
-    with open(fi) as fasta:
-        for line in fasta:
-            if line.startswith('>'): 
-                key = line.strip()[1:]
-                fileArr[key] = ''
-            else: fileArr[key] = f'{fileArr[key]}{line.strip()}'
+    for record in rfOb.records:
+        fileArr[record.id] = str(record.seq)
     return fileArr
 
-def isBlunt(string, cut):
-    comp = string.translate(string.maketrans("ATGC", "TACG"))
-    rev = comp[::-1]
-    print(f'{" ".ljust(cut+1," ")}↓')
-    print(f'--{string[:cut]} {string[cut:]}--')
+def loadOneline(file):
+    with open(file) as f: r = json.load(f)
+    return r
+
+
+def findMotif(chr, fasta, motif, offset=0):
+    revOff = len(motif)-offset-1
+    motifRGX = ''.join([nucleotides[i] for i in motif.upper()])
+    p1 = [i.start()+offset for i in re.finditer(motifRGX, fasta)]
+    p2 = []
+
+    # if len(set(motif).difference('GATCWSN'))==0 and motif.translate(revcomp)[::-1]==motif:
+    #     p2 = [i.start()+revOff for i in re.finditer(motifRGX, fasta)]
+    # else: 
+    revMot = motif.upper()[::-1]
+    rfasta = fasta.translate(revcomp)
+    motifRGXrev = ''.join([nucleotides[i] for i in revMot])
+    # p2 = [i.end()-offset-1 for i in re.finditer(motifRGXrev, rfasta)]
+    p2 = [i.end()-offset for i in re.finditer(motifRGXrev, rfasta)]
     
-    le=len(string)
-    if rev==string and le/2==cut : 
-        print(f'--{comp[:cut]} {comp[cut:]}--')
-        print(f'{" ".ljust(cut+3," ")}↑')
-        return True, 0
-    else: 
-        ret = le-cut
-        print(f'--{comp[:ret]} {comp[ret:]}--')
-        print(f'{" ".ljust(ret+3," ")}↑')
-        return False, ret-1
+    pos  = [f'{chr}\t{l}\t{l+1}\t{motif}\t.\t{"+"}' for l in p1]
+    pos += [f'{chr}\t{l-1}\t{l}\t{motif}\t.\t{"-"}' for l in p2]
+    return pos 
 
-def main():
-    args = get_args()
-    ref,motif, off, out = args.ref,args.motif, args.cut_offset, args.out
+def getMotif(file):
+    t = pd.read_csv(file, sep="\t", names=['chr', 'p1', 'p2', 'motif', 's', 'strand'])
+    return t
 
-    multfa = openFastaFile(ref) 
-    blunt, roff = isBlunt(motif, off)
+def makeBed(fastaOb, motif, offset=0):
+    outData = [] 
+    for chr in fastaOb.keys(): outData += findMotif(chr, fastaOb[chr], motif, offset)
+    outData = '\n'.join(outData)
+    return getMotif(StringIO(outData)).sort_values(['chr', 'p1','strand']).reset_index(drop=True)
 
-    if out!=None: 
-        with open(out, 'w') as output: output.write('')
-        print(f'saving to: {out}')
-    for i in multfa:
-        it = [i.start()+off for i in re.finditer(motif, multfa[i])]
-        if not blunt: it+= [j+roff for j in it]
-        it = sorted(it)
+def importBedFile(file):
+    return pd.read_csv(file, sep="\t", names=['chr', 'p1', 'p2', 'motif', 's', 'strand'])
 
-        if out==None: 
-            for j in it: print(f'{i}\t{j}\t{motif}')
-        else:
-            with open(out, 'a') as output: 
-                for j in it: output.write(f'{i}\t{j}\t{motif}\n')
+def check(srch, comp):
+    srchregex = ''.join([nucleotides[i] for i in srch])
+    return bool(re.search(f'^{srchregex}$', comp)), comp
+
+def saveBed(bedOb, savFileName):
+    with open(savFileName, 'w+') as f: f.write(bedOb)
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('ref',type=str, help='refernece genome location')
-    parser.add_argument('-m', '--motif', help='motif to search for')
-    parser.add_argument('-c', '--cut-offset', type=int, help='refernece genome location', default=None)
-    parser.add_argument('-o', '--out', help='output file name. Default: print to STDIO', default=None)
+    parser = argparse.ArgumentParser(description=(f"""This script generates bed files with the start and end
+    locations centred around the modified locations
+
+    accepted notations:
+    --------------------------------------
+    {'a'.rjust(7)} - 6mA
+    {'m'.rjust(7)} - 5mC
+    {'ATGC'.rjust(7)} - cononical bases
+    {'RYSWKM'.rjust(7)} - wildcard bases 
+    {'BDHV'.rjust(7)} - wildcard bases 
+    {'N'.rjust(7)} - any of the 4 canonical bases
+    """
+),formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-r', '--ref', type=str, help='refernece fasta file', required=True)
+    parser.add_argument('-m', '--motif', type=str, help='Motif location', required=True)
+    parser.add_argument('-c', '--chr', type=str, help='chromosome name to keep', default="")
+    parser.add_argument('-O', '--offset', type=int, help='index of notif nucleotide to pick in bed file', default=0)
+    parser.add_argument('-o', '--output', type=str, help='Output File', default="")
+    parser.add_argument('-H', '--header', action='store_true', help='print headers')
+    
     return parser.parse_args()
 
-if __name__ == '__main__': main() 
+if __name__ == "__main__":
+    args = get_args()
+    # bedfile, reference, motif, modKit, outFile, cache, min_depth, nlabel = args.bed, args.ref, args.motif, args.mod_kit, , args.cache_all, args.min_depth, args.name
+
+    ref = args.ref
+    motif = args.motif
+
+    regOb = re.search('[am]', 'GATC')
+    if regOb==None:
+        offset = args.offset
+        motif = args.motif.upper()
+    else:
+        methNucleotide = regOb.group(0)
+        offset = regOb.span(0)[0]
+
+    chrom = args.chr
+    outbed = args.output
+
+    data = openFastaFile(ref)
+    bed = makeBed(data, motif, offset=offset)
+    if len(chrom)!=0: bed = bed.query('chr==@chrom').copy().reset_index(drop=True)
+
+    if args.output!="": 
+        path = Path(outbed)
+        if Path(str(path.parent)).exists()==False: Path.mkdir(Path(directory))
+        bed.reset_index(drop=True).to_csv(f'{directory}/{abbr}_{motif}.bed', sep="\t", header=None, index=False)
+    else:
+        bed = bed.to_string(index=False, header=None if args.header==False else True)
+        print(bed)
