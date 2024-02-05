@@ -115,6 +115,7 @@ if __name__ == "__main__":
         bed.reset_index(drop=True).to_csv(f'{directory}/{abbr}_{motif}.bed', sep="\t", header=None, index=False)
     else:
         try:
-            print(bed.to_csv(sep='\t', index=False, header=None))
+            print(bed.to_csv(sep='\t', index=False, header=None if args.header==False else True))
         except BrokenPipeError:
             pass
+
